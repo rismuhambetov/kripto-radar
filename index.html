@@ -154,7 +154,7 @@ button:disabled{opacity:.5;cursor:default}
   header{padding:12px 0 10px}
   .brand h1{font-size:19px}
   .controls{gap:6px}.controls label{font-size:11.5px!important}
-  .summary{display:flex;overflow-x:auto;gap:8px;scroll-snap-type:x mandatory;padding-bottom:4px;margin:12px 0}
+  .summary{display:flex;align-items:flex-start;overflow-x:auto;gap:8px;scroll-snap-type:x mandatory;padding-bottom:4px;margin:12px 0}
   .summary .tile{flex:0 0 72%;scroll-snap-align:start}
   .tile{padding:10px}.tile .val{font-size:17px}
   .chart{height:300px}
@@ -213,7 +213,7 @@ button:disabled{opacity:.5;cursor:default}
 <div class="tabpanel" data-panel="scan">
 <section class="box" id="scanBox">
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between">
-    <h2 style="margin:0">Сканер рынка · топ-50 фьючерсов Binance</h2>
+    <h2 style="margin:0">Сканер рынка · топ-50 криптовалют на фьючерсах Binance</h2>
     <div class="row" style="align-items:center"><span class="muted" id="scanStatus" style="font-size:12px">Сканер запустится после загрузки…</span><button id="scanBtn">Сканировать сейчас</button></div>
   </div>
   <div class="cols" style="margin-top:10px">
@@ -278,7 +278,7 @@ button:disabled{opacity:.5;cursor:default}
   </section>
 </div></div>
 
-<p class="disc">Это аналитический инструмент, а не финансовый совет. Индикаторы и ИИ ошибаются, прошлые результаты не гарантируют будущих. Ставьте стоп-лосс и не рискуйте деньгами, потерять которые не готовы. Данные: Binance (свечи, фандинг, открытый интерес, позиции топ-трейдеров), alternative.me (страх и жадность), CryptoCompare и Reddit (новости).</p>
+<p class="disc">Это аналитический инструмент, а не финансовый совет. Индикаторы и ИИ ошибаются, прошлые результаты не гарантируют будущих. Ставьте стоп-лосс и не рискуйте деньгами, потерять которые не готовы. Данные: Binance (свечи, фандинг, открытый интерес, позиции топ-трейдеров), alternative.me (страх и жадность), Coinbase, новостные ленты ForkLog, Cointelegraph, Bits.media, CoinDesk, Decrypt, Bitcoin Magazine.</p>
 
 <div id="toast"></div>
 <div id="voiceBox"><div class="you" id="vYou"></div><div id="vAns"></div></div>
@@ -347,7 +347,6 @@ async function loadFeed(f){
       return j.items.map(i=>({title:strip(i.title).trim(),url:i.link,src:f.name,t:Math.floor((Date.parse(i.pubDate.replace(' ','T')+'Z')||Date.now())/1000),tags:strip(i.description).slice(0,300)}));},
     async()=>parseRSS((await getJSON(`https://api.allorigins.win/get?url=${e}`,9000)).contents,f.name),
     async()=>parseRSS(await getText(`https://api.codetabs.com/v1/proxy/?quest=${e}`),f.name),
-    async()=>parseRSS(await getText(f.url),f.name),
   ];
   const pref=state.feedWay?.[f.name];
   const run=i=>ways[i]().then(r=>{if(!r||!r.length)throw 0;state.feedWay[f.name]=i;r.forEach(n=>n.ru=!!f.ru);return r;});
@@ -355,11 +354,7 @@ async function loadFeed(f){
   return await Promise.race([Promise.any(ways.map((_,i)=>run(i))),new Promise((_,rej)=>setTimeout(()=>rej(new Error(f.name)),10000))]);
 }
 async function loadNews(){
-  const res=await Promise.allSettled([
-    ...FEEDS.map(loadFeed),
-    (async()=>{const cc=await getJSON('https://min-api.cryptocompare.com/data/v2/news/?lang=EN');if(!cc?.Data?.length)throw new Error('CryptoCompare');
-      return cc.Data.slice(0,30).map(n=>({title:n.title,url:n.url,src:n.source_info?.name||n.source,t:n.published_on,tags:(n.categories||'')+' '+(n.body||'').slice(0,300)}));})(),
-  ]);
+  const res=await Promise.allSettled(FEEDS.map(loadFeed));
   const ok=[],seen=new Set();let items=[];
   res.forEach(r=>{if(r.status==='fulfilled'&&r.value.length){ok.push(r.value[0].src);r.value.forEach(n=>{const k=n.title.toLowerCase().slice(0,60);if(n.title&&!seen.has(k)){seen.add(k);items.push(n);}});}});
   const weekAgo=Date.now()/1000-7*86400;
@@ -495,7 +490,7 @@ function analyzeTF(K,tf){
 }
 
 /* ---------- деривативы, стакан, ликвидации ---------- */
-const money=u=>u>=1e9?(u/1e9).toFixed(1)+' млрд':u>=1e6?(u/1e6).toFixed(1)+' млн':Math.round(u/1e3)+' тыс';
+const money=u=>u>=1e9?(u/1e9).toFixed(1)+' млрд':u>=1e6?(u/1e6).toFixed(1)+' млн':u>=1e3?Math.round(u/1e3)+' тыс':String(Math.round(u));
 function bookWalls(depth,P){
   if(!depth||!depth.bids||!depth.bids.length||!depth.asks)return null;
   const lv=a=>a.map(([p,q])=>({p:+p,usd:+p*+q}));
@@ -588,7 +583,7 @@ async function loadPair(sym){
   return {sym,T,D,src:res[0].src};
 }
 function buildPair(raw,isRef){
-  const {sym,T,D}=raw,base=sym.replace(/(USDT|USDC|BUSD|FDUSD)$/,'');
+  const {sym,T,D}=raw,base=sym.replace(/(USDT|USDC|BUSD|FDUSD)$/,'').replace(/^1000(000)?(?=[A-Z])/,'');
   const A={};TFS.forEach(tf=>A[tf]=analyzeTF(T[tf],tf));
   const VP=volProfile(T['1h']),der=analyzeDerivs(D,T['1h'],sym,VP),sen=sentimentScore(base);
   const mix=(tech)=>Math.round(0.7*tech+0.2*der.score+0.1*sen.score);
@@ -930,9 +925,8 @@ const currentSyms=()=>[...new Set($('#pairs').value.toUpperCase().split(/[\s,;]+
 async function runScanner(){
   if(state.scanBusy)return;state.scanBusy=true;$('#scanBtn').disabled=true;$('#scanStatus').textContent='Загружаю список монет…';
   try{
-    const t=await getJSON('https://fapi.binance.com/fapi/v1/ticker/24hr',15000);
-    const STABLE=/^(USDC|FDUSD|TUSD|BUSD|DAI|USDP|EUR|USDE|XUSD|BFUSD)USDT$/;
-    const top=t.filter(x=>/USDT$/.test(x.symbol)&&!STABLE.test(x.symbol)&&!x.symbol.includes('_')).sort((a,b)=>b.quoteVolume-a.quoteVolume).slice(0,50);
+    const [t,cs]=await Promise.all([getJSON('https://fapi.binance.com/fapi/v1/ticker/24hr',15000),safe(loadCryptoSet())]);
+    const top=t.filter(x=>/USDT$/.test(x.symbol)&&!STABLE.test(x.symbol)&&!x.symbol.includes('_')&&(!cs||cs.has(x.symbol))).sort((a,b)=>b.quoteVolume-a.quoteVolume).slice(0,50);
     const res=[];let idx=0,done=0;
     const worker=async()=>{while(idx<top.length){const x=top[idx++];
       try{const [k15,k1,k4]=await Promise.all(['15m','1h','4h'].map(tf=>getJSON(`https://fapi.binance.com/fapi/v1/klines?symbol=${x.symbol}&interval=${tf}&limit=1000`,15000).then(parseK)));
@@ -1103,10 +1097,17 @@ function goToCoin(sym){setTab('coins');setTimeout(()=>{const c=document.getEleme
 
 /* ---------- мои монеты: добавить / убрать ---------- */
 state.allSyms=null;
+// Binance торгует и фьючерсами на акции/металлы — оставляем только криптовалюты (underlyingType COIN)
+async function loadCryptoSet(){
+  if(state.cryptoSet)return state.cryptoSet;
+  const ei=await getJSON('https://fapi.binance.com/fapi/v1/exchangeInfo',15000);
+  state.cryptoSet=new Set(ei.symbols.filter(x=>x.underlyingType==='COIN'&&x.contractType==='PERPETUAL'&&x.status==='TRADING'&&x.quoteAsset==='USDT').map(x=>x.symbol));
+  return state.cryptoSet;
+}
+const STABLE=/^(USDC|FDUSD|TUSD|BUSD|DAI|USDP|EUR|USDE|XUSD|BFUSD|USD1|RLUSD|PYUSD)USDT$/;
 async function loadSymList(){
-  try{const t=await getJSON('https://fapi.binance.com/fapi/v1/ticker/24hr',15000);
-    const STABLE=/^(USDC|FDUSD|TUSD|BUSD|DAI|USDP|EUR|USDE|XUSD|BFUSD)USDT$/;
-    state.allSyms=t.filter(x=>/USDT$/.test(x.symbol)&&!x.symbol.includes('_')&&!STABLE.test(x.symbol)).sort((a,b)=>b.quoteVolume-a.quoteVolume).map(x=>({s:x.symbol,v:+x.quoteVolume,ch:+x.priceChangePercent}));
+  try{const [t,cs]=await Promise.all([getJSON('https://fapi.binance.com/fapi/v1/ticker/24hr',15000),safe(loadCryptoSet())]);
+    state.allSyms=t.filter(x=>/USDT$/.test(x.symbol)&&!x.symbol.includes('_')&&!STABLE.test(x.symbol)&&(!cs||cs.has(x.symbol))).sort((a,b)=>b.quoteVolume-a.quoteVolume).map(x=>({s:x.symbol,v:+x.quoteVolume,ch:+x.priceChangePercent}));
     $('#coinList').innerHTML=state.allSyms.map(x=>`<option value="${esc(x.s.replace(/USDT$/,''))}">`).join('');
   }catch(e){state.allSyms=null;}
   renderCoins();
@@ -1116,7 +1117,10 @@ function addCoin(raw){
   let t=String(raw||'').trim();if(!t)return;
   const b=findBase(t.toLowerCase());let sym=(b||t).toUpperCase().replace(/[^A-Z0-9]/g,'');if(!sym)return;
   if(!/USDT$|USDC$/.test(sym))sym+='USDT';
-  if(state.allSyms&&!state.allSyms.some(x=>x.s===sym)){toast(`Монеты <b>${esc(sym)}</b> нет среди фьючерсов Binance. Проверьте название.`);return;}
+  if(state.allSyms&&!state.allSyms.some(x=>x.s===sym)){
+    const k='1000'+sym,k2='1000000'+sym;
+    if(state.allSyms.some(x=>x.s===k))sym=k;else if(state.allSyms.some(x=>x.s===k2))sym=k2;
+    else{toast(state.cryptoSet&&!state.cryptoSet.has(sym)&&/USDT$/.test(sym)?`<b>${esc(sym)}</b> — это не криптовалюта или её нет на фьючерсах Binance. Радар анализирует только криптовалюты.`:`Монеты <b>${esc(sym)}</b> нет среди фьючерсов Binance. Проверьте название.`);return;}}
   const l=currentSyms();if(l.includes(sym)){goToCoin(sym);return;}
   if(l.length>=10){toast('Не больше 10 монет одновременно — иначе Binance начнёт ограничивать запросы. Уберите какую-нибудь.');return;}
   l.push(sym);setSyms(l);$('#coinAdd').value='';toast(`${esc(sym)} добавлена`);refresh();
